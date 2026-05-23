@@ -1,0 +1,22 @@
+# 原始数据
+data/raw/
+# 修剪后的临时文件
+data/trimmed/
+# Salmon 索引
+resources/salmon_index/
+# Salmon 定量辅助文件（保留 quant.sf）
+results/quant/*/aux_info/
+results/quant/*/logs/
+results/quant/*/libParams/
+results/quant/*/*.json
+# 其他中间结果目录
+results/bam/
+results/counts/
+results/qc/
+# 日志文件（保留 fastp 的 html/json）
+logs/*.log
+# 备份文件
+workflow/*.bak
+# 系统文件
+.DS_Store
+*.swp

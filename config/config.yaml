@@ -22,3 +22,6 @@ salmon_extra: "--validateMappings --gcBias"
 bcv: 0.1
 logFC_threshold: 1
 fdr_threshold: 0.05
+
+# 是否运行 fastp 质控（true: 运行质控后再定量；false: 直接使用原始数据定量）
+run_fastp: true

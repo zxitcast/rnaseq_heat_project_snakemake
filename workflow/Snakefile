@@ -1,0 +1,128 @@
+import os
+
+configfile: "config/config.yaml"
+
+SAMPLES = config["samples"]
+QUANT_DIR = config["quant_dir"]
+DE_DIR = config["de_dir"]
+INDEX_DIR = config["salmon_index"]
+
+# 确保输出目录存在
+for d in [QUANT_DIR, DE_DIR, INDEX_DIR, "logs/fastp"]:
+    os.makedirs(d, exist_ok=True)
+
+# ---------------------------------------------------------------------
+# 辅助函数：根据配置决定 salmon_quant 的输入是修剪后的文件还是原始文件
+def get_fastq_input(wildcards):
+    if config.get("run_fastp", True):
+        # 使用 fastp 修剪后的文件（假设 fastp 规则会生成）
+        return {
+            "fq1": os.path.join("data/trimmed", f"{wildcards.sample}_1.fastq.gz"),
+            "fq2": os.path.join("data/trimmed", f"{wildcards.sample}_2.fastq.gz")
+        }
+    else:
+        # 直接使用原始 FASTQ
+        return {
+            "fq1": os.path.join("data/raw", f"{wildcards.sample}_1.fastq.gz"),
+            "fq2": os.path.join("data/raw", f"{wildcards.sample}_2.fastq.gz")
+        }
+# ---------------------------------------------------------------------
+
+rule all:
+    input:
+        os.path.join(DE_DIR, "DEG_all.csv"),
+        os.path.join(DE_DIR, "DEG_significant.csv"),
+        os.path.join(DE_DIR, "volcano_plot.png"),
+        os.path.join(DE_DIR, "heatmap_top50.png")
+        # 如果运行 fastp，可将 html 报告加入最终目标（可选）
+        # + expand(os.path.join("logs/fastp", "{sample}.html"), sample=SAMPLES) if config.get("run_fastp", True) else []
+
+rule salmon_index:
+    input:
+        fasta = config["ref_transcriptome"]
+    output:
+        index = directory(INDEX_DIR)
+    log:
+        "logs/salmon_index.log"
+    threads: 2
+    resources:
+        mem_mb=2000
+    shell:
+        """
+        salmon index -t {input.fasta} -i {output.index} 2> {log}
+        """
+
+# 仅当 run_fastp 为 True 时定义 fastp 规则
+if config.get("run_fastp", True):
+    rule fastp:
+        input:
+            r1 = os.path.join("data/raw", "{sample}_1.fastq.gz"),
+            r2 = os.path.join("data/raw", "{sample}_2.fastq.gz")
+        output:
+            r1_trim = temp(os.path.join("data/trimmed", "{sample}_1.fastq.gz")),
+            r2_trim = temp(os.path.join("data/trimmed", "{sample}_2.fastq.gz")),
+            json = os.path.join("logs/fastp", "{sample}.json"),
+            html = os.path.join("logs/fastp", "{sample}.html")
+        params:
+            extra = "--detect_adapter_for_pe --poly_g_min_len 10 --cut_front --cut_tail --cut_window_size 4 --cut_mean_quality 20 --length_required 50"
+        log:
+            os.path.join("logs", "{sample}_fastp.log")
+        threads: 2
+        resources:
+            mem_mb=1000
+        shell:
+            """
+            fastp -i {input.r1} -I {input.r2} \
+                  -o {output.r1_trim} -O {output.r2_trim} \
+                  --json {output.json} --html {output.html} \
+                  {params.extra} 2> {log}
+            """
+
+# salmon_quant 规则统一使用 get_fastq_input 函数获取输入
+rule salmon_quant:
+    input:
+        unpack(get_fastq_input),    # 这里会根据 config 自动选择原始或修剪后的文件
+        index = INDEX_DIR           # 关键字参数
+    output:
+        quant_sf = os.path.join(QUANT_DIR, "{sample}", "quant.sf")
+    params:
+        extra = config.get("salmon_extra", "")
+    log:
+        os.path.join("logs", "{sample}_salmon.log")
+    threads: 2
+    resources:
+        mem_mb=2000
+    run:
+        out_dir = os.path.dirname(output.quant_sf)
+        shell("""
+            salmon quant -i {input.index} -l A \
+                -1 {input.fq1} -2 {input.fq2} \
+                -o {out_dir} {params.extra} 2> {log}
+        """)
+
+# diff_expr 规则不变（需要 quant.sf）
+rule diff_expr:
+    input:
+        quant_files = expand(os.path.join(QUANT_DIR, "{sample}", "quant.sf"), sample=SAMPLES)
+    output:
+        deg_all = os.path.join(DE_DIR, "DEG_all.csv"),
+        deg_sig = os.path.join(DE_DIR, "DEG_significant.csv"),
+        volcano = os.path.join(DE_DIR, "volcano_plot.png"),
+        heatmap = os.path.join(DE_DIR, "heatmap_top50.png")
+    params:
+        bcv = config["bcv"],
+        logFC = config["logFC_threshold"],
+        fdr = config["fdr_threshold"],
+        samples = " ".join(SAMPLES),
+        quant_dir = QUANT_DIR,
+        ref_fasta = config["ref_transcriptome"]
+    log:
+        "logs/diff_expr.log"
+    shell:
+        """
+        Rscript scripts/diff_expr.R \
+            {params.quant_dir} "{params.samples}" {params.ref_fasta} \
+            {params.bcv} {params.logFC} {params.fdr} \
+            {output.deg_all} {output.deg_sig} \
+            {output.volcano} {output.heatmap} > {log} 2>&1
+        """
