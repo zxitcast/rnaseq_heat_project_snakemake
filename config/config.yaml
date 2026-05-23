@@ -1,0 +1,24 @@
+# 样本列表（双端，文件名格式: {sample}_1.fastq.gz 和 {sample}_2.fastq.gz）
+samples:
+  - SRR11359743
+  - SRR11359746
+
+# 参考转录本 fasta 路径（用于 Salmon 索引）
+ref_transcriptome: "resources/genome/Arabidopsis_thaliana.TAIR10.cdna.all.fa"
+
+# Salmon 索引输出目录
+salmon_index: "resources/salmon_index"
+
+# 定量结果输出目录
+quant_dir: "results/quant"
+
+# 差异表达结果输出目录
+de_dir: "results/diff_expr"
+
+# Salmon 参数（可选）
+salmon_extra: "--validateMappings --gcBias"
+
+# edgeR 设置（无重复样本，BCV 固定为 0.1）
+bcv: 0.1
+logFC_threshold: 1
+fdr_threshold: 0.05
