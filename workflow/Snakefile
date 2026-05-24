@@ -7,26 +7,20 @@ QUANT_DIR = config["quant_dir"]
 DE_DIR = config["de_dir"]
 INDEX_DIR = config["salmon_index"]
 
-# 确保输出目录存在
 for d in [QUANT_DIR, DE_DIR, INDEX_DIR, "logs/fastp"]:
     os.makedirs(d, exist_ok=True)
 
-# ---------------------------------------------------------------------
-# 辅助函数：根据配置决定 salmon_quant 的输入是修剪后的文件还是原始文件
 def get_fastq_input(wildcards):
     if config.get("run_fastp", True):
-        # 使用 fastp 修剪后的文件（假设 fastp 规则会生成）
         return {
             "fq1": os.path.join("data/trimmed", f"{wildcards.sample}_1.fastq.gz"),
             "fq2": os.path.join("data/trimmed", f"{wildcards.sample}_2.fastq.gz")
         }
     else:
-        # 直接使用原始 FASTQ
         return {
             "fq1": os.path.join("data/raw", f"{wildcards.sample}_1.fastq.gz"),
             "fq2": os.path.join("data/raw", f"{wildcards.sample}_2.fastq.gz")
         }
-# ---------------------------------------------------------------------
 
 rule all:
     input:
@@ -34,26 +28,25 @@ rule all:
         os.path.join(DE_DIR, "DEG_significant.csv"),
         os.path.join(DE_DIR, "volcano_plot.png"),
         os.path.join(DE_DIR, "heatmap_top50.png")
-        # 如果运行 fastp，可将 html 报告加入最终目标（可选）
-        # + expand(os.path.join("logs/fastp", "{sample}.html"), sample=SAMPLES) if config.get("run_fastp", True) else []
 
 rule salmon_index:
     input:
         fasta = config["ref_transcriptome"]
     output:
-        index = directory(INDEX_DIR)
-    conda: "envs/salmon.yaml"
+        version_info = os.path.join(INDEX_DIR, "versionInfo.json")
     log:
         "logs/salmon_index.log"
     threads: 2
     resources:
         mem_mb=2000
+    conda:
+        "envs/salmon.yaml"
     shell:
         """
-        salmon index -t {input.fasta} -i {output.index} 2> {log}
+        mkdir -p {INDEX_DIR}
+        salmon index -t {input.fasta} -i {INDEX_DIR} -p {threads} 2> {log}
         """
 
-# 仅当 run_fastp 为 True 时定义 fastp 规则
 if config.get("run_fastp", True):
     rule fastp:
         input:
@@ -79,14 +72,13 @@ if config.get("run_fastp", True):
                   {params.extra} 2> {log}
             """
 
-# salmon_quant 规则统一使用 get_fastq_input 函数获取输入
 rule salmon_quant:
     input:
         unpack(get_fastq_input),
-        index = INDEX_DIR
+        index_dir = INDEX_DIR,
+        version_info = os.path.join(INDEX_DIR, "versionInfo.json")
     output:
         quant_sf = os.path.join(QUANT_DIR, "{sample}", "quant.sf")
-    conda: "envs/salmon.yaml"
     params:
         extra = config.get("salmon_extra", "")
     log:
@@ -94,15 +86,16 @@ rule salmon_quant:
     threads: 2
     resources:
         mem_mb=2000
+    conda:
+        "envs/salmon.yaml"
     shell:
         """
         out_dir=$(dirname {output.quant_sf})
-        salmon quant -i {input.index} -l A \
+        salmon quant -i {input.index_dir} -l A \
             -1 {input.fq1} -2 {input.fq2} \
-            -o $out_dir {params.extra} 2> {log}
+            -o $out_dir -p {threads} {params.extra} 2> {log}
         """
 
-# diff_expr 规则不变（需要 quant.sf）
 rule diff_expr:
     input:
         quant_files = expand(os.path.join(QUANT_DIR, "{sample}", "quant.sf"), sample=SAMPLES)
