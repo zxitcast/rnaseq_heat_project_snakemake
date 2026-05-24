@@ -27,3 +27,4 @@ workflow/*.bak
 *.swp
 # Snakemake 缓存
 .snakemake/
+logs/
