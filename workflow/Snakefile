@@ -82,8 +82,8 @@ if config.get("run_fastp", True):
 # salmon_quant 规则统一使用 get_fastq_input 函数获取输入
 rule salmon_quant:
     input:
-        unpack(get_fastq_input),    # 这里会根据 config 自动选择原始或修剪后的文件
-        index = INDEX_DIR           # 关键字参数
+        unpack(get_fastq_input),
+        index = INDEX_DIR
     output:
         quant_sf = os.path.join(QUANT_DIR, "{sample}", "quant.sf")
     conda: "envs/salmon.yaml"
@@ -94,13 +94,13 @@ rule salmon_quant:
     threads: 2
     resources:
         mem_mb=2000
-    run:
-        out_dir = os.path.dirname(output.quant_sf)
-        shell("""
-            salmon quant -i {input.index} -l A \
-                -1 {input.fq1} -2 {input.fq2} \
-                -o {out_dir} {params.extra} 2> {log}
-        """)
+    shell:
+        """
+        out_dir=$(dirname {output.quant_sf})
+        salmon quant -i {input.index} -l A \
+            -1 {input.fq1} -2 {input.fq2} \
+            -o $out_dir {params.extra} 2> {log}
+        """
 
 # diff_expr 规则不变（需要 quant.sf）
 rule diff_expr:
