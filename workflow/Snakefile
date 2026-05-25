@@ -27,8 +27,12 @@ rule all:
         os.path.join(DE_DIR, "DEG_all.csv"),
         os.path.join(DE_DIR, "DEG_significant.csv"),
         os.path.join(DE_DIR, "volcano_plot.png"),
-        os.path.join(DE_DIR, "heatmap_top50.png")
-
+        os.path.join(DE_DIR, "heatmap_top50.png"),
+        # 新增 GO 输出
+        os.path.join(DE_DIR, "GO_up.csv"),
+        os.path.join(DE_DIR, "GO_down.csv"),
+        os.path.join(DE_DIR, "GO_up_bubble.png"),
+        os.path.join(DE_DIR, "GO_down_bubble.png")
 rule salmon_index:
     input:
         fasta = config["ref_transcriptome"]
@@ -120,4 +124,27 @@ rule diff_expr:
             {params.bcv} {params.logFC} {params.fdr} \
             {output.deg_all} {output.deg_sig} \
             {output.volcano} {output.heatmap} > {log} 2>&1
+        """
+
+rule enrichment:
+    input:
+        deg_all = os.path.join(DE_DIR, "DEG_all.csv")
+    output:
+        go_up_csv = os.path.join(DE_DIR, "GO_up.csv"),
+        go_down_csv = os.path.join(DE_DIR, "GO_down.csv"),
+        go_up_png = os.path.join(DE_DIR, "GO_up_bubble.png"),
+        go_down_png = os.path.join(DE_DIR, "GO_down_bubble.png")
+    params:
+        top_n = 100,
+        project_dir = config.get("project_dir", os.getcwd())  # 需要修改
+    log:
+        "logs/go_enrichment.log"
+    shell:
+        """
+        Rscript scripts/03_enrichment.R \
+            {input.deg_all} \
+            {params.top_n} \
+            {output.go_up_csv} {output.go_down_csv} \
+            {output.go_up_png} {output.go_down_png} \
+            > {log} 2>&1
         """
