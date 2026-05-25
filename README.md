@@ -20,8 +20,7 @@
 
 整个流程由 Snakemake 自动化管理，一键运行：
 
-```
-bash
+```bash
 # 激活环境
 micromamba activate rnaseq   # 或 conda activate rnaseq（命令兼容）
 
@@ -77,16 +76,14 @@ snakemake --cores 1 --resources mem=2000
 
 ### 1. 克隆仓库
 
-```
-bash
+```bash
 git clone https://github.com/zxitcast/rnaseq_heat_project_snakemake
 cd snakemake_rnaseq
 ```
 
 ### 2. 安装依赖（需要 `micromamba` 或 `conda`）
 
-```
-bash
+```bash
 # 创建主环境（包含 Snakemake, R, fastp 等）
 micromamba env create -f environment.yml -n rnaseq
 # 创建 salmon 专用环境（Snakemake 会自动切换）
@@ -102,23 +99,20 @@ micromamba activate rnaseq
 
 - **安装下载工具** `aria2c`（如果尚未安装）：
 
-  ```
-  bash
+  ```bash
   sudo apt install aria2   # Ubuntu/Debian
   # 或使用 conda: conda install -c conda-forge aria2
   ```
 
 - **下载原始 FASTQ 数据**（约 11 GB）：
 
-  ```
-  bash
+  ```bash
   bash scripts/download_data.sh
   ```
 
 - **下载参考转录本、基因组和注释文件**（约 200 MB）：
 
-  ```
-  bash
+  ```bash
   bash scripts/download_reference.sh
   ```
 
@@ -126,8 +120,7 @@ micromamba activate rnaseq
 
 ### 4. 运行分析
 
-```
-bash
+```bash
 snakemake --cores 1 --resources mem=2000
 ```
 
@@ -137,8 +130,7 @@ snakemake --cores 1 --resources mem=2000
 
 ## 目录结构
 
-```
-text
+```text
 snakemake_rnaseq/
 ├── LICENSE
 ├── README.md
